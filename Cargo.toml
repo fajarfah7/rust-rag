@@ -1,0 +1,29 @@
+[package]
+name = "rag"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+async-trait = "0.1"
+serde = { version = "1.0", features = ["derive"] } # Untuk serialisasi/deserialisasi dasar
+serde_json = "1.0" # Contoh untuk format JSON
+dotenvy = "0.15"
+tokio = { version = "1", features = ["full"] }
+tower = "0.5"
+axum = { version = "0.7", features = ["multipart"] }
+sqlx = { version = "0.8", features = ["runtime-tokio", "postgres", "macros", "uuid", "chrono"] }
+chrono = { version = "0.4", features = ["serde", "clock"] }
+uuid = { version = "1", features = ["v4", "serde"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+jsonwebtoken = "9"
+argon2 = "0.5"
+password-hash = "0.5"
+rand = "0.8"
+aws-sdk-s3 = { version = "1", features = ["behavior-version-latest"] }
+aws-config = "1"
+sanitize-filename = "0.5"
+pdfium-render = "0.8"
+reqwest = { version = "0.12", features = ["json"] }
+rdkafka = { version = "0.36", features = ["tokio", "cmake-build"] }
+futures = "0.3"
