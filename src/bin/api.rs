@@ -1,18 +1,23 @@
 use tokio::net::TcpListener;
 
-use axum::Router;
+use axum::{Router, http::HeaderValue};
 
 use rag::{
     config::{environment::EnvConfig, minio::new_minio_storage, postgre::new_pg_pool},
     route::{auth_route::auth_route, document_route::document_route},
 };
+use tower_http::cors::{CorsLayer, Any};
 
 #[tokio::main]
 async fn main() {
-    dotenvy::dotenv().ok();
+    rag::init_env();
     rag::init_tracing();
-    tracing::info!("WARN HARUS MUNCUL");
     // tracing_subscriber::fmt::init();
+
+    let cors = CorsLayer::new()
+    .allow_origin("http://localhost:5173".parse::<HeaderValue>().unwrap())
+    .allow_methods(Any)
+    .allow_headers(Any);
 
     let cfg = EnvConfig::init();
 
@@ -27,9 +32,12 @@ async fn main() {
 
     let app = Router::new()
         .merge(auth_route(pool.clone()))
-        .merge(document_route(pool.clone(), storage));
+        .merge(document_route(pool.clone(), storage))
+        .layer(cors);
 
     let listener = TcpListener::bind("0.0.0.0:8080").await.unwrap();
+    
+    tracing::info!("API RUNNING http://localhost:8080");
 
     axum::serve(listener, app).await.unwrap();
 }

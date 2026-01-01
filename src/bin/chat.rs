@@ -1,27 +1,33 @@
-use rag::document_parser::{
-    domain::error::PdfParserError,
-    helper::build_context::{build_context, build_prompt},
-    infrastructure::{
-        embedder::embedder_lm_studio::LmStudioEmbedder, llm_chat::llm_chat::ask_llm, pdfium::loader::PdfLoader, vector_storage::{qdrant_search::search_qdrant, qdrant_upsert::upsert_to_qdrant}
+use rag::error::pdf_parser::PdfParserError;
+use rag::{
+    helper::builder::{build_context, build_prompt},
+    repository::{
+        embedder::{contract::Embedder, embedder_lm_studio::LmStudioEmbedder},
+        llm::{contract::Llm, lm_studio::LmStudio},
     },
-    ports::embedder::Embedder,
-    usecase::{embed_chunks::embed_chunks, ingest_pdf::IngestPdf},
+    usecase::qdrant::usecase_qdrant::search_qdrant,
 };
+use reqwest::Client;
 
 #[tokio::main]
 async fn main() -> Result<(), PdfParserError> {
+    rag::init_tracing();
+
     // ========= CONFIG =========
-    let pdf_path = "./sample.pdf";
     let collection = "pdf_chunks";
-    let question = "Sebutkan Aset dan Keunggulan Kompetitif";
+    let question = "berikan point point penting di BAB VII";
+
+    let client = Client::new();
+    let llm = LmStudio::new(
+        client,
+        "http://localhost:1234".into(),
+        "meta-llama-3-8b-instruct".into(),
+    );
 
     let embedder = LmStudioEmbedder {
         base_url: "http://localhost:1234".into(),
         model: "nomic-ai/nomic-embed-text-v1.5-GGUF".into(),
     };
-
-    let chat_model = "meta-llama-3-8b-instruct";
-    let llm_base_url = "http://localhost:1234";
 
     // // // UNCOMMENT THESES TO EXTRACT DATA TO QDRANT
     // // ========= LOAD PDF =========
@@ -49,14 +55,9 @@ async fn main() -> Result<(), PdfParserError> {
     let context = build_context(&results, 5_000);
     let prompt = build_prompt(&context, question);
 
-    let answer = ask_llm(
-        llm_base_url,
-        chat_model,
-        &prompt,
-    ).await?;
+    let answer = llm.ask(&prompt).await?;
 
     println!("\n=== ANSWER ===\n{}\n", answer);
 
     Ok(())
 }
-

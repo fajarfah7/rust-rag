@@ -76,9 +76,15 @@ impl IntoResponse for ResponseError {
                 Json(body)
             })
                 .into_response(),
-            ResponseError::InternalServerError => {
-                (StatusCode::INTERNAL_SERVER_ERROR, "internal server error").into_response()
-            }
+            ResponseError::InternalServerError => (StatusCode::INTERNAL_SERVER_ERROR, {
+                let body = ResponseErrorBody {
+                    status: StatusCode::INTERNAL_SERVER_ERROR.as_u16(),
+                    message: "internal server error".into(),
+                    detail: None,
+                };
+                Json(body)
+            })
+                .into_response(),
             ResponseError::Multipart(e) => (StatusCode::INTERNAL_SERVER_ERROR, {
                 let body = ResponseErrorBody {
                     status: StatusCode::INTERNAL_SERVER_ERROR.as_u16(),
@@ -86,7 +92,8 @@ impl IntoResponse for ResponseError {
                     detail: Some(e.body_text().to_string()),
                 };
                 Json(body)
-            }).into_response(),
+            })
+                .into_response(),
         }
     }
 }

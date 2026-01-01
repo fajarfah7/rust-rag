@@ -1,24 +1,39 @@
 use futures::StreamExt;
 use rag::app_document::domain::document_domain::Document;
+use rag::app_document::repository::document_repository::DocumentRepository;
 use rag::config::environment::EnvConfig;
 use rag::config::minio::new_minio_storage;
-use rag::document_parser::infrastructure::embedder::embedder_lm_studio::LmStudioEmbedder;
-use rag::document_parser::infrastructure::pdfium::loader::PdfLoader;
-use rag::document_parser::infrastructure::vector_storage::qdrant_upsert::upsert_to_qdrant;
-use rag::document_parser::usecase::embed_chunks::embed_chunks;
-use rag::document_parser::usecase::ingest_pdf::IngestPdf;
+use rag::config::postgre::new_pg_pool;
+// use rag::document_parser::infrastructure::embedder_engine::embedder_lm_studio::LmStudioEmbedder;
+
+// use rag::document_parser::infrastructure::pdfium::loader::PdfLoader;
+// use rag::document_parser::infrastructure::vector_storage::qdrant_upsert::upsert_to_qdrant;
+// use rag::document_parser::usecase::embed_chunks::embed_chunks;
+// use rag::document_parser::usecase::ingest_pdf::IngestPdf;
+use rag::infrastructure::pdfium::loader::PdfLoader;
+use rag::infrastructure::postgresql::document_repository_sqlx::DocumentRepositorySqlx;
 use rag::infrastructure::storage::domain::FileStorage;
 use rag::infrastructure::storage::minio::storage::FileStorageMinio;
+use rag::repository::embedder::contract::Embedder;
+use rag::repository::embedder::embedder_lm_studio::LmStudioEmbedder;
+use rag::repository::vector_storage::contract::VectorStorage;
+use rag::repository::vector_storage::qdrant::QdrantVectorStorage;
+use rag::usecase::ingest_pdf::usecase_ingest_pdf::IngestPdf;
 use rdkafka::consumer::{Consumer, StreamConsumer};
 use rdkafka::{ClientConfig, Message};
 use tokio::fs;
 use tokio::io::AsyncWriteExt;
+use reqwest::Client;
 
 #[tokio::main]
 async fn main() {
     rag::init_env();
     rag::init_tracing();
-    tracing::info!("STARTING");
+    tracing::info!("CONSUMER RUNNING");
+
+    // INIT CONFIG FROM ENV
+    let cfg = EnvConfig::init();
+    let qdrant_collection = cfg.qdrant_collection;
 
     let pdf_loader = match PdfLoader::new() {
         Ok(pl) => pl,
@@ -33,13 +48,10 @@ async fn main() {
         model: "nomic-ai/nomic-embed-text-v1.5-GGUF".into(),
     };
 
-    // INIT CONFIG FROM ENV
-    let cfg = EnvConfig::init();
-    // INIT CONFIG FROM ENV
+    let pool = new_pg_pool(&cfg.database).await;
+    let repo_doc = DocumentRepositorySqlx::new(pool);
 
-    let qdrant_collection = cfg.qdrant_collection;
-
-    // INIT STORAGE
+    // INIT FILE STORAGE
     let s3 = new_minio_storage(
         &cfg.storage_region,
         &cfg.storage_access_key,
@@ -48,6 +60,10 @@ async fn main() {
     )
     .await;
     let storage = FileStorageMinio::new(s3);
+
+    // INIT VECTOR STORAGE
+    let client = Client::new();
+    let qdrant_vector_storage = QdrantVectorStorage::new(client, qdrant_collection);
 
     // INIT CONSUMER
     let consumer: StreamConsumer = ClientConfig::new()
@@ -124,10 +140,10 @@ async fn main() {
         };
 
         tracing::info!("EXECUTING FILE");
-        let chunks = IngestPdf::execute(&doc, &file_path);
+        let chunks = IngestPdf::execute(&doc, &document.original_filename);
 
         tracing::info!("EMBED CHUNKS");
-        let vectors = match embed_chunks(&embedder, &chunks).await {
+        let vectors = match embedder.embed_chunks(&chunks).await {
             Ok(vec) => vec,
             Err(e) => {
                 tracing::error!(error = ?e, "failed embed chunks");
@@ -135,10 +151,16 @@ async fn main() {
             }
         };
 
-        tracing::info!("STORE TO QDRANT");
-        match upsert_to_qdrant(&qdrant_collection, &chunks, &vectors).await {
+        match qdrant_vector_storage.upsert_to_vector_storage(
+            &document.user_id.to_string(),
+            &document.id.to_string(),
+            &chunks,
+            &vectors,
+        )
+        .await
+        {
             Ok(_) => {
-                tracing::info!("DOCUMENT SUCCESSFULLY PROCESSED");
+                tracing::info!("DOCUMENT SUCCESSFULLY EXTRACTED");
             }
             Err(e) => {
                 tracing::error!(error = ?e, "failed store data to qdrant");
@@ -148,7 +170,7 @@ async fn main() {
 
         match tokio::fs::remove_file(&file_path).await {
             Ok(_) => {
-                tracing::info!("DOCUMENT SUCCESSFULLY CLEARED");
+                tracing::info!("DOCUMENT SUCCESSFULLY CLEARED FROM TMP");
             }
             Err(e) => {
                 tracing::error!(error = ?e, "failed remove file");
@@ -156,7 +178,19 @@ async fn main() {
             }
         }
 
+        match repo_doc
+            .update_document_status(&document.id, "success")
+            .await
+        {
+            Ok(_) => {
+                tracing::info!("FINISHED PROCESS DOCUMENT");
+            }
+            Err(e) => {
+                tracing::error!(error = ?e, "failed update document status");
+                continue;
+            }
+        }
+
         tracing::info!("FINISHED");
-        // STARTING EMBEDDING
     }
 }

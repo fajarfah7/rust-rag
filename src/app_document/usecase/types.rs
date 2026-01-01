@@ -1,5 +1,7 @@
 use uuid::Uuid;
 
+use crate::app_document::domain::document_domain::Document;
+
 #[derive(Debug)]
 pub struct UploadFileRequest {
     pub user_id: Uuid,
@@ -12,4 +14,9 @@ pub struct UploadFileRequest {
 pub enum UploadFileError {
     Minio(String),
     InvalidInput
+}
+
+pub struct ListDocumentResult {
+    pub data: Vec<Document>,
+    pub total_data: i64,
 }
