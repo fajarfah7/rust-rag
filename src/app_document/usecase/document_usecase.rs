@@ -117,7 +117,8 @@ impl<R: DocumentRepository, S: FileStorage> DocumentUsecase<R, S> {
             ResponseError::InternalServerError
         })?;
 
-        KafkaProducer::new().produce_kafka_message(payload_kafka).await;
+        let topic = "document-parser";
+        KafkaProducer::new().produce_kafka_message(topic, payload_kafka).await;
 
         Ok(())
     }

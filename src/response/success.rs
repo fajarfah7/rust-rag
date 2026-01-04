@@ -17,7 +17,7 @@ struct ResponseSuccessBody<T> {
 #[derive(Serialize, Debug)]
 struct PaginationMeta {
     page: u32,
-    per_page: u32,
+    per_page: Option<u32>,
     total_data: u64,
     total_page: u32,
 }
@@ -26,7 +26,7 @@ struct PaginationMeta {
 pub enum ResponseSuccess<T> {
     NoData(StatusCode),
     Object(StatusCode, Option<T>),
-    Pagination(u32, u32, u64, Option<T>),
+    Pagination(u32, Option<u32>, u64, Option<T>),
 }
 
 impl<T> IntoResponse for ResponseSuccess<T>
@@ -56,8 +56,15 @@ where
             })
                 .into_response(),
             ResponseSuccess::Pagination(page, per_page, total_data, data) => (StatusCode::OK, {
-                // let total_page: u32 = (total_company as f64 / (query.per_page.unwrap_or(1) as f64)).ceil() as u32;
-                let total_page = (total_data as f64 / per_page as f64).ceil() as u32;
+                let mut total_page: u32 = 1;
+                match per_page {
+                    Some(pp) => {
+                        total_page = (total_data as f64 / pp as f64).ceil() as u32;
+                    }
+                    None => (),
+                };
+
+                // let total_page = (total_data as f64 / per_page as f64).ceil() as u32;
                 let meta: PaginationMeta = PaginationMeta {
                     page,
                     per_page,

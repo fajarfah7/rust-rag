@@ -3,3 +3,4 @@ pub mod path_uuid;
 pub mod embedder;
 pub mod qdrant;
 pub mod llm;
+pub mod safe_query;

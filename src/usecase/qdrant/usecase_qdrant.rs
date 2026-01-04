@@ -16,6 +16,7 @@ pub async fn search_qdrant(
         collection
     );
 
+    // // EXAMPLE QUERY WITH FILTER
     // "vector": query_vector,
     //         "limit": limit,
     //         "with_payload": true,
@@ -36,16 +37,6 @@ pub async fn search_qdrant(
             "vector": query_vector,
             "limit": limit,
             "with_payload": true,
-            "filter": {
-                "must": [
-                    {
-                        "key": "city",
-                        "match": {
-                            "value": "London"
-                        }
-                    }
-                ]
-            }
         }))
         .send()
         .await
@@ -70,7 +61,6 @@ pub async fn api_search_qdrant(
     query_vector: Vec<f32>,
     limit: usize,
     user_id: &Uuid,
-    document_id: &Uuid,
 ) -> Result<Vec<(QdrantPayload, f32)>, PdfParserError> {
     let client = Client::new();
     let url = format!(
@@ -90,12 +80,6 @@ pub async fn api_search_qdrant(
                         "key": "owner_user_id",
                         "match": {
                             "value": user_id.to_string(),
-                        }
-                    },
-                    {
-                        "key": "document_id",
-                        "match": {
-                            "value": document_id.to_string(),
                         }
                     }
                 ]

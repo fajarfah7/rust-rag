@@ -23,10 +23,10 @@ impl KafkaProducer {
         }
     }
 
-    pub async fn produce_kafka_message(&self, msg: String) {
-        let record = FutureRecord::to("document-parser")
+    pub async fn produce_kafka_message(&self, topic: &str, msg: String) {
+        let record = FutureRecord::to(topic)
             .payload(msg.as_str())
-            .key("Test-Key");
+            .key("S3CrEt");
 
         let status_delivery = self
             .future_producer

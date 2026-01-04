@@ -4,7 +4,7 @@ use axum::{Router, http::HeaderValue};
 
 use rag::{
     config::{environment::EnvConfig, minio::new_minio_storage, postgre::new_pg_pool},
-    route::{auth_route::auth_route, document_route::document_route},
+    route::{auth_route::auth_route, chat_route::chat_route, document_route::document_route, profile_route::profile_route},
 };
 use tower_http::cors::{CorsLayer, Any};
 
@@ -33,6 +33,8 @@ async fn main() {
     let app = Router::new()
         .merge(auth_route(pool.clone()))
         .merge(document_route(pool.clone(), storage))
+        .merge(chat_route(pool.clone()))
+        .merge(profile_route(pool).clone())
         .layer(cors);
 
     let listener = TcpListener::bind("0.0.0.0:8080").await.unwrap();

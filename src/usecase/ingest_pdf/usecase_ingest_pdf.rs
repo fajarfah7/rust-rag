@@ -22,6 +22,9 @@ impl IngestPdf {
             }
 
             let normalized = Self::normaize_text(&text);
+            if normalized == "" {
+                continue;
+            }
             let blocks = Self::split_blocks(&normalized);
             let page_chunks = Self::chunk_blocks(blocks, 2000, 200);
 
